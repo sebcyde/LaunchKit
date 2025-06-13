@@ -1,100 +1,85 @@
-use dialoguer::Select;
-use std::{
-    path::{Path, PathBuf},
-    process::Output,
-};
+// use dialoguer::Select;
+use std::io::{self, BufRead, BufReader};
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
+
+fn stream_command(cmd: &str) {
+    let mut child = Command::new("cmd")
+        .args(["/C", cmd])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("Failed to spawn command");
+
+    let stdout = child.stdout.take().expect("Failed to capture stdout");
+    let stderr = child.stderr.take().expect("Failed to capture stderr");
+
+    let stdout_handle = std::thread::spawn(move || {
+        let reader = BufReader::new(stdout);
+        for line in reader.lines() {
+            if let Ok(line) = line {
+                println!("{}", line);
+            }
+        }
+    });
+
+    let stderr_handle = std::thread::spawn(move || {
+        let reader = BufReader::new(stderr);
+        for line in reader.lines() {
+            if let Ok(line) = line {
+                eprintln!("{}", line);
+            }
+        }
+    });
+
+    child.wait().expect("Failed to wait on child");
+    stdout_handle.join().unwrap();
+    stderr_handle.join().unwrap();
+}
 
 fn main() {
     println!("Starting LaunchKit...\nLoaded.");
-
     ///// Getting Project Details
-
-    println!("\nEnter a project name.");
+    println!("\nEnter a project name:");
 
     let mut project_name: String = String::new();
-
-    std::io::stdin()
+    io::stdin()
         .read_line(&mut project_name)
         .expect("Failed to get project name.");
+    let project_name: &str = project_name.trim(); // trim newline
 
-    println!("\nCreating {}...\n", project_name.trim());
+    println!("\nCreating {}...\n", project_name);
 
-    ///// Navigation to location
-
-    // ~/Documents/Code/My_Sites
-    // let navigation_output: Output = std::process::Command::new("cmd")
-    //     .arg(format!("cd ~/Documents/Code/My_Sites"))
-    //     .output()
-    //     .expect("Failed to run execution command");
-
-    let path: &Path = Path::new(r"C:\Users\SebCy\Documents\Code\My_Sites");
-    std::env::set_current_dir(&path).expect("Failed to set current dir.");
+    // Set working directory
+    let base_path: &Path = Path::new(r"C:\Users\SebCy\Documents\Code\My_Sites");
+    std::env::set_current_dir(base_path).expect("Failed to set current dir.");
 
     let current_dir: PathBuf = std::env::current_dir().expect("Failed to get cwd.");
-    println!("CWD: {}\n", current_dir.display());
+    println!("Working directory: {}\n", current_dir.display());
 
-    ///// Creating Template
-
-    let template_creation_command: String = format!(
+    // Run Vite template creation
+    let template_command: String = format!(
         "npm create vite@latest {} -- --template react-ts",
         project_name
     );
-    let template_creation_output: Output = std::process::Command::new("cmd")
-        .arg(template_creation_command)
-        .output()
-        .expect("Failed to run execution command");
+    println!("Running: {}\n", template_command);
+    stream_command(&template_command);
 
-    println!(
-        "Template creation stdout:\n{}\n",
-        String::from_utf8_lossy(&template_creation_output.stdout)
-    );
-    println!(
-        "Template creation stderr:\n{}\n",
-        String::from_utf8_lossy(&template_creation_output.stderr)
-    );
+    // Change to new project dir
+    let new_project_path: PathBuf = base_path.join(project_name);
+    std::env::set_current_dir(&new_project_path).expect("Failed to set project dir.");
 
-    ////// Packages Installation
-    let new_template_path_string: String =
-        format!(r"C:\Users\SebCy\Documents\Code\My_Sites\{}", project_name);
+    let new_cwd: PathBuf = std::env::current_dir().expect("Failed to get cwd.");
+    println!("\nInstalling dependencies at: {}\n", new_cwd.display());
 
-    println!("\nnew_template_path_string: {}\n", new_template_path_string);
+    // Install dependencies
+    stream_command("npm install");
 
-    let new_template_path: &Path = Path::new(&new_template_path_string);
-    std::env::set_current_dir(&new_template_path).expect("Failed to set current dir.");
+    // Directory listing
+    println!("\nProject directory contents:\n");
+    stream_command("dir");
 
-    let new_current_dir: PathBuf = std::env::current_dir().expect("Failed to get cwd.");
-    println!("New CWD: {}\n", new_current_dir.display());
-
-    let installation_output: Output = std::process::Command::new("cmd")
-        .arg("npm install")
-        .output()
-        .expect("Failed to run execution command");
-
-    println!(
-        "Installation stdout:\n{}\n",
-        String::from_utf8_lossy(&installation_output.stdout)
-    );
-    println!(
-        "Installation stderr:\n{}\n",
-        String::from_utf8_lossy(&installation_output.stderr)
-    );
-
-    ////// General Output
-
-    let output = std::process::Command::new("ls")
-        .arg("-la")
-        .output()
-        .expect("Failed to run execution command");
-
-    println!(
-        "General Output stdout:\n{}",
-        String::from_utf8_lossy(&output.stdout)
-    );
-    println!(
-        "General Output stderr:\n{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    println!("\nComplete.\n");
+    println!("\n✅ Complete.\n");
 
     ///// Optional - Open Project
 
