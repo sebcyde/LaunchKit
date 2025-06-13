@@ -1,0 +1,11 @@
+[package]
+description = "Boilerplate Generator"
+authors = ["Sebastian"]
+name = "LaunchKit"
+version = "0.1.0"
+edition = "2024"
+repository = ""
+license = ""
+
+[dependencies]
+dialoguer = "0.11.0"
